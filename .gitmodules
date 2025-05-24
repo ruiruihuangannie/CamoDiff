@@ -1,0 +1,3 @@
+[submodule "DiffMamba"]
+	path = DiffMamba
+	url = git@github.com:ruiruihuangannie/DiffMamba.git
