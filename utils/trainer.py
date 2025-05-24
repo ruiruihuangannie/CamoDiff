@@ -188,7 +188,7 @@ class Trainer(object):
         for data in tqdm(test_data_loader, disable=not accelerator.is_main_process):
             image, gt, name, image_for_post = data['image'], data['gt'], data['name'], data['image_for_post']
             gt = [np.array(x, np.float32) for x in gt]
-            gt = [x / x.max() + 1e-8 for x in gt]
+            gt = [x / (x.max() + 1e-8) for x in gt]
             image = image.to(device).squeeze(1)
             out = self.train_val_forward_fn(model, image=image, verbose=False)
             res = out["pred"].detach().cpu()
@@ -257,7 +257,7 @@ class Trainer(object):
         for data in tqdm(test_data_loader, disable=not accelerator.is_main_process):
             image, gt, name, image_for_post = data['image'], data['gt'], data['name'], data['image_for_post']
             gt = [np.array(x, np.float32) for x in gt]
-            gt = [x / x.max() + 1e-8 for x in gt]
+            gt = [x / (x.max() + 1e-8) for x in gt]
             image = image.to(device).squeeze(1)
             batch_res = []
             for i in range(5):
