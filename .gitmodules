@@ -1,3 +1,4 @@
 [submodule "DiffMamba"]
 	path = DiffMamba
-	url = git@github.com:ruiruihuangannie/DiffMamba.git
+	url = https://github.com/ruiruihuangannie/DiffMamba.git
+	branch = main
