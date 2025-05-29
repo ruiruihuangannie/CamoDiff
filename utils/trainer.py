@@ -16,6 +16,7 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
 from model.train_val_forward import simple_train_val_forward
+from omegaconf import OmegaConf
 
 
 def has_int_squareroot(num):
@@ -88,7 +89,7 @@ class Trainer(object):
             kwargs_handlers=[ddp_kwargs]
         )
         project_name = getattr(cfg, "project_name", 'ResidualDiffsuion-v7')
-        self.accelerator.init_trackers(project_name, config=cfg)
+        self.accelerator.init_trackers(project_name, config=OmegaConf.to_container(cfg, resolve=True))
         create_url_shortcut_of_wandb(accelerator=self.accelerator)
         self.logger = create_logger_of_wandb(accelerator=self.accelerator, rank=not self.accelerator.is_main_process)
         self.accelerator.native_amp = amp

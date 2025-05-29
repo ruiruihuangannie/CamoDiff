@@ -1,0 +1,41 @@
+project_name: CamoDiffusion_DiffMamba
+
+__base__:
+  - config/dataset_diffmamba_352x352.yaml
+
+model:
+  name: model.net_diffmamba.net
+  params:
+    class_num: 4
+    mask_chans: 1
+    block_type: 'spiral'
+
+cond_uvit:
+  name: model.net_diffmamba.EmptyObject
+  params:
+    conditioning_klass: model.net_diffmamba.EmptyObject
+
+diffusion_model:
+  name: model.SimpleDiffSef.CondGaussianDiffusion
+  params:
+    model: #model
+    image_size: 352
+    channels: 4
+    cond_channels: 3
+    noise_d: 64
+    num_sample_steps: 10
+    clip_sample_denoised: True
+    pred_objective: 'x0'
+    loss_type: 'model.loss.structure_loss'
+
+optimizer:
+  name: torch.optim.AdamW
+  params:
+    lr: 1e-4
+
+train_val_forward_fn: "model.train_val_forward.modification_train_val_forward"
+
+train_dataset:
+  name: dataset.datasets.ACTK_dataset
+  params:
+    boundary_modification: True

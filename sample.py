@@ -1,18 +1,18 @@
-import sys
+from utils import init_env
+
+import argparse
 
 import torch
-from utils.train_utils import set_random_seed
-
-from utils import init_env
-import os
-import argparse
-from pathlib import Path
-
 from utils.collate_utils import collate
 from utils.import_utils import instantiate_from_config, recurse_instantiate_from_config, get_obj_from_str
 from utils.init_utils import add_args
+from utils.train_utils import set_random_seed
 from torch.utils.data import DataLoader
 from utils.trainer import Trainer
+
+import sys
+import os
+from pathlib import Path
 
 set_random_seed(7)
 
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     parser.add_argument('--checkpoint', type=str, default=None)
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--results_folder', type=str, default='./results')
-    parser.add_argument('--num_epoch', type=int, default=150)
+    parser.add_argument('--num_epoch', type=int, default=100)
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--gradient_accumulate_every', type=int, default=1)
     parser.add_argument('--num_workers', type=int, default=8)

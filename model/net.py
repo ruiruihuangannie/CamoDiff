@@ -9,7 +9,7 @@ from einops import repeat
 from einops.layers.torch import Rearrange
 from timm.models.layers import to_2tuple, trunc_normal_
 
-from denoising_diffusion_pytorch.simple_diffusion import ResnetBlock, LinearAttention
+from denoising_diffusion_pytorch.simple_diffusion import ResnetBlock
 
 
 class Mlp(nn.Module):

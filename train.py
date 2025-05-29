@@ -41,7 +41,7 @@ if __name__ == "__main__":
     parser.add_argument('--pretrained', type=str, default=None)
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--results_folder', type=str, default=None, help='None for saving in wandb folder.')
-    parser.add_argument('--num_epoch', type=int, default=150)
+    parser.add_argument('--num_epoch', type=int, default=100)
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--gradient_accumulate_every', type=int, default=1)
     parser.add_argument('--num_workers', type=int, default=8)
