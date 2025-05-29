@@ -6,3 +6,7 @@ denoising-diffusion-pytorch/denoising_diffusion_pytorch/__pycache__/
 model/__pycache__/
 pretrained_weights/
 utils/__pycache__/
+media/
+whl/
+
+setup*.*
