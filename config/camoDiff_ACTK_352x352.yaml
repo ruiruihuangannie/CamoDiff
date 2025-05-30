@@ -1,19 +1,19 @@
-project_name: CamoDiffusion_DiffMamba
+project_name: CamoDiffusion_ACTK
 
 __base__:
-  - config/dataset_diffmamba_352x352.yaml
+  - config/dataset_ACTK_352x352.yaml
 
 model:
-  name: model.net_diffmamba.net
+  name: model.net.net
   params:
     class_num: 4
     mask_chans: 1
     block_type: 'spiral'
 
 cond_uvit:
-  name: model.net_diffmamba.EmptyObject
+  name: model.net.EmptyObject
   params:
-    conditioning_klass: model.net_diffmamba.EmptyObject
+    conditioning_klass: model.net.EmptyObject
 
 diffusion_model:
   name: model.SimpleDiffSef.CondGaussianDiffusion
@@ -21,12 +21,13 @@ diffusion_model:
     model: #model
     image_size: 352
     channels: 4
-    cond_channels: 3
+    cond_channels: 1
     noise_d: 64
     num_sample_steps: 10
     clip_sample_denoised: True
     pred_objective: 'x0'
-    loss_type: 'model.loss.structure_loss'
+    # loss_type: 'model.loss.structure_loss'
+    loss_type: 'model.loss.structure_loss_multiclass'
 
 optimizer:
   name: torch.optim.AdamW
@@ -34,8 +35,12 @@ optimizer:
     lr: 1e-4
 
 train_val_forward_fn: "model.train_val_forward.modification_train_val_forward"
+# train_val_forward_fn: "model.train_val_forward.simple_train_val_forward"
 
 train_dataset:
   name: dataset.datasets.ACTK_dataset
   params:
     boundary_modification: True
+
+
+# accelerate launch train_actk.py --config config/camoDiff_unintegrated_352x352.yaml --num_epoch=150 --batch_size=4 --gradient_accumulate_every=1

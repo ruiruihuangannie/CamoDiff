@@ -1,0 +1,21 @@
+train_dataset:
+  name: dataset.datasets.ACTK_dataset
+  params:
+    image_root: './media/ACTKS/TrainImage/slices/train/'
+    gt_root: './media/ACTKS/TrainMask/slices/train/'
+    # image_root: './media/ACTK/TrainImage/slices/train/'
+    # gt_root: './media/ACTK/TrainMask/slices/train/'
+    size: 352
+    split: 'train'
+
+test_dataset:
+  ACTK:
+    name: dataset.datasets.ACTK_dataset
+    params:
+      image_root: './media/ACTKS/TrainImage/slices/test/'
+      gt_root: './media/ACTKS/TrainMask/slices/test/'
+      # image_root: './media/ACTK/TrainImage/slices/test/'
+      # gt_root: './media/ACTK/TrainMask/slices/test/'
+      size: 352
+      split: 'test'
+
