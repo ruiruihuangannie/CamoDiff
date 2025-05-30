@@ -125,4 +125,5 @@ dependencies:
       - pytorch_fid
       # - mmcv-full==1.7.2
       - argparse==1.4.0
+      - nibabel
 
