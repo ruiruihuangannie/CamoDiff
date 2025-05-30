@@ -146,3 +146,50 @@ class Bce_iou_loss(nn.Module):
         weighted_iou = (weight * iou).sum(dim=(2, 3)) / weight.sum(dim=(2, 3))
 
         return (weighted_bce + weighted_iou).mean()
+
+def structure_loss_multiclass(pred, mask):
+    """
+    Structure loss for multiclass segmentation
+    pred: [B, C, H, W] - model predictions (logits)
+    mask: [B, 1, H, W] - ground truth with class indices (0, 1, 2, 3)
+    """
+    smooth = 1e-8
+    B, C, H, W = pred.shape
+    
+    # 1) Convert mask to one-hot: shape → [B, C, H, W]
+    labels      = mask.squeeze(1).long()                     # [B, H, W]
+    mask_onehot = F.one_hot(labels, num_classes=C)           # [B, H, W, C]
+    mask_onehot = mask_onehot.permute(0, 3, 1, 2).float()    # [B, C, H, W]
+
+    # 2) Compute per-class “edge” weights via large average-pool:
+    #    Boundaries in any class will have higher weight.
+    weight = 1 + 5 * torch.abs(
+        F.avg_pool2d(mask_onehot, kernel_size=31, stride=1, padding=15)
+        - mask_onehot
+    )
+
+    # 3) Gather the weight corresponding to the true class at each pixel:
+    #    weight_pixel[b, h, w] = weight[b, labels[b,h,w], h, w]
+    weight_pixel = weight.gather(1, labels.unsqueeze(1)).squeeze(1)  # [B, H, W]
+
+    # 4) Weighted cross-entropy (per-pixel reduction):
+    #    - reduction='none' → keep per-pixel CE
+    #    - multiply by weight_pixel
+    #    - sum over H×W, then normalize by total weight
+    ce_map       = F.cross_entropy(pred, labels, reduction='none')  # [B, H, W]
+    weighted_ce  = (weight_pixel * ce_map).sum((1, 2)) / (weight_pixel.sum((1, 2)) + smooth)           # [B]
+
+    # 5) Weighted Dice loss (vectorized over classes):
+    pred_soft    = F.softmax(pred, dim=1)                         # [B, C, H, W]
+    #   intersection = ∑ weight * P * GT
+    #   union        = ∑ weight * (P + GT)
+    intersection = (weight * pred_soft * mask_onehot).sum((2, 3))  # [B, C]
+    union        = (weight * (pred_soft + mask_onehot)).sum((2, 3))  # [B, C]
+    dice_score   = (2 * intersection + smooth) / (union + smooth)   # [B, C]
+    dice_loss    = 1 - dice_score                                   # [B, C]
+    dice_loss    = dice_loss.mean(dim=1)                            # average over C → [B]
+
+    # 6) Combine CE + Dice and average over the batch
+    loss = (weighted_ce + dice_loss).mean()
+
+    return loss

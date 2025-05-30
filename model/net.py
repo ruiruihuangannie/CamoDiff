@@ -604,9 +604,10 @@ class net(nn.Module):
     def __init__(self, class_num=2, mask_chans=0, **kwargs):
         super(net, self).__init__()
         self.class_num = class_num
-        self.backbone = pvt_v2_b4_m(in_chans=3, mask_chans=mask_chans)
+        # self.backbone = pvt_v2_b4_m(in_chans=3, mask_chans=mask_chans)
+        self.backbone = pvt_v2_b4_m(in_chans=1, mask_chans=mask_chans)
         self.decode_head = Decoder(dims=[64, 128, 320, 512], dim=256, class_num=class_num, mask_chans=mask_chans)
-        self._init_weights()  # load pretrain
+        # self._init_weights()  # load pretrain
 
     def forward(self, x, timesteps, cond_img):
         features = self.backbone(x, timesteps, cond_img)
