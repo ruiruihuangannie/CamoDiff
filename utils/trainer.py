@@ -227,7 +227,7 @@ class Trainer(object):
             image, gt, name, image_for_post = data['image'], data['gt'], data['name'], data['image_for_post']
             gt = [x.cpu().numpy().astype(np.float32) for x in gt]
             gt = [x / (x.max() + 1e-8) for x in gt]
-            image = image.to(device).squeeze(1)
+            image = image.to(device)
             ensem_out = self.train_val_forward_fn(model, image=image, time_ensemble=True,
                                                   gt_sizes=[g.shape for g in gt], verbose=False)
             ensem_res = ensem_out["pred"]
@@ -259,7 +259,7 @@ class Trainer(object):
             image, gt, name, image_for_post = data['image'], data['gt'], data['name'], data['image_for_post']
             gt = [np.array(x, np.float32) for x in gt]
             gt = [x / (x.max() + 1e-8) for x in gt]
-            image = image.to(device).squeeze(1)
+            image = image.to(device)
             batch_res = []
             for i in range(5):
                 ensem_out = self.train_val_forward_fn(model, image=image, time_ensemble=True, verbose=False)

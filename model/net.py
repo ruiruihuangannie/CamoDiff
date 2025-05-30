@@ -141,7 +141,7 @@ class OverlapPatchEmbed(nn.Module):
     """ Image to Patch Embedding
     """
 
-    def __init__(self, img_size=224, patch_size=7, stride=4, in_chans=3, embed_dim=768, mask_chans=0):
+    def __init__(self, img_size=224, patch_size=7, stride=4, in_chans=1, embed_dim=768, mask_chans=0):
         super().__init__()
         img_size = to_2tuple(img_size)
         patch_size = to_2tuple(patch_size)
@@ -154,7 +154,7 @@ class OverlapPatchEmbed(nn.Module):
                               padding=(patch_size[0] // 2, patch_size[1] // 2))
         if mask_chans != 0:
             self.mask_proj = nn.Conv2d(mask_chans, embed_dim, kernel_size=patch_size, stride=stride,
-                                       padding=(patch_size[0] // 2, patch_size[1] // 2))
+                                       padding=(patch_size[0] // 2, patch_size[1] // 2)) #!
             # set mask_proj weight to 0
             self.mask_proj.weight.data.zero_()
             self.mask_proj.bias.data.zero_()

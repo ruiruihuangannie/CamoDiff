@@ -20,7 +20,7 @@ diffusion_model:
   params:
     model: #model
     image_size: 352
-    channels: 4
+    channels: 1
     cond_channels: 1
     noise_d: 64
     num_sample_steps: 10
