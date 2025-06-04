@@ -1,12 +1,6 @@
-wandb
-dataset/__pycache__
-dataset/data_utils/__pycache__
-dataset/dataset_utils/__pycache__/
-denoising-diffusion-pytorch/denoising_diffusion_pytorch/__pycache__/
-model/__pycache__/
-pretrained_weights/
-utils/__pycache__/
+*/__pycache__
+*/*/__pycache__
 media/
-whl/
-
-setup*.*
+pretrained_weights/
+wandb/
+setup*
