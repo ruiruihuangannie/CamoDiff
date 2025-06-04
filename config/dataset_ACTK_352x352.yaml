@@ -1,3 +1,5 @@
+num_channels: 5 # include background
+
 train_dataset:
   name: dataset.datasets.ACTK_dataset
   params:
@@ -7,6 +9,7 @@ train_dataset:
     # gt_root: './media/ACTK/TrainMask/slices/train/'
     size: 352
     split: 'train'
+    num_classes: ${num_channels}
 
 test_dataset:
   ACTK:
@@ -18,4 +21,4 @@ test_dataset:
       # gt_root: './media/ACTK/TrainMask/slices/test/'
       size: 352
       split: 'test'
-
+      num_classes: ${num_channels}
