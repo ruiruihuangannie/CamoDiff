@@ -1,21 +1,22 @@
 import os
-import albumentations as A
-from PIL import Image
-import numpy as np
-from torch.utils.data import Dataset, DataLoader
-import torch.utils.data as data
-import nibabel as nib
-from typing import Dict, Tuple
 import sys
+from glob import glob
+from typing import Dict, Tuple
+
+import numpy as np
+from PIL import Image
+import torch
+import torch.nn.functional as F
+import torch.utils.data as data
+from torch.utils.data import Dataset, DataLoader
+import torchvision.transforms as transforms
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.init_env import resolve_path
-import torchvision.transforms as transforms
-from glob import glob
 from dataset.data_val import randomPeper, random_modified
-import torch.nn.functional as F
 
 class ACTK_dataset(Dataset):
-    def __init__(self, image_root, gt_root, size, split='train', mean=None, std=None, 
+    def __init__(self, image_root, gt_root, size, split, mean=None, std=None, 
                  randomPeper=True, boundary_modification=False, boundary_args={}):
         """
         General dataset class for both training and testing.
@@ -35,13 +36,14 @@ class ACTK_dataset(Dataset):
         self.resize = size
         self.split = split
         self.index = 0
-
         self.do_randomPeper = randomPeper
         self.do_boundary_modification = boundary_modification
         self.boundary_args = boundary_args
         
-        self.images = [image_root + f for f in os.listdir(image_root) if f.endswith('.png')]
-        self.gts = [gt_root + f for f in os.listdir(gt_root) if f.endswith('.png')]
+        image_root = resolve_path(image_root)
+        gt_root = resolve_path(gt_root)
+        self.images = [os.path.join(image_root, f) for f in os.listdir(image_root) if f.endswith('.png')]
+        self.gts = [os.path.join(gt_root, f) for f in os.listdir(gt_root) if f.endswith('.pt')]
         self.images = sorted(self.images)
         self.gts = sorted(self.gts)
         assert len(self.images) == len(self.gts), f"Mismatch: {len(self.images)} images vs {len(self.gts)} ground truth files"
@@ -49,17 +51,15 @@ class ACTK_dataset(Dataset):
         # Setup transforms
         self.img_transform = self.get_transform(mean, std)
         self.gt_transform = transforms.Compose([
-            transforms.Resize((self.resize, self.resize)),
-            transforms.ToTensor()
+            transforms.Resize((self.resize, self.resize), interpolation=transforms.InterpolationMode.NEAREST),
         ])
         
         if self.split == 'train':
-            self.aug_transform = A.Compose([
-                A.RandomScale(scale_limit=0.25, p=0.5),
-                A.HorizontalFlip(p=0.5),
-                A.VerticalFlip(p=0.5),
-                A.Rotate(limit=15, p=0.5),
-                A.RandomRotate90(p=0.5),
+            self.aug_transform = transforms.Compose([
+                transforms.RandomAffine(degrees=15, scale=(0.75, 1.25)),
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomVerticalFlip(p=0.5),
+                transforms.RandomRotation(degrees=90)
             ])
         else:
             self.aug_transform = None
@@ -67,9 +67,7 @@ class ACTK_dataset(Dataset):
         self.dataset_size = len(self.images)
 
     def get_transform(self, mean=None, std=None):
-        # For grayscale images, use appropriate normalization
-        # Convert to [0,1] range with ToTensor, then normalize to [-1,1] or use ImageNet style
-        mean = [0.5] if mean is None else mean  # Normalize [0,1] to [-1,1]
+        mean = [0.5] if mean is None else mean
         std = [0.5] if std is None else std
         
         transform = transforms.Compose([
@@ -85,58 +83,35 @@ class ACTK_dataset(Dataset):
     def __getitem__(self, idx: int):
         data = {}
         image = self.binary_loader(self.images[idx])
-        gt = self.binary_loader(self.gts[idx])
-        image_size = image.size
+        gt = torch.load(self.gts[idx])
+        
+        image = transforms.Resize((self.resize, self.resize))(image)
+        gt = transforms.Resize((self.resize, self.resize), interpolation=transforms.InterpolationMode.NEAREST)(gt)
 
         # data augmentation
         if self.split == 'train':
             assert self.aug_transform is not None, "Augmentation is not applied in training mode"
-            image_np = np.array(image)
-            gt_np = np.array(gt)
-            augmented = self.aug_transform(image=image_np, mask=gt_np)
-            image, gt = augmented['image'], augmented['mask']
-            
-            # Pad and crop like in data_val.py
-            padded = A.PadIfNeeded(*image_size[::-1], border_mode=0)(image=image, mask=gt)
-            cropped = A.RandomCrop(*image_size[::-1])(image=padded['image'], mask=padded['mask'])
-            image, gt = cropped['image'], cropped['mask']
-            
-            # Convert numpy arrays back to PIL Images
-            image = Image.fromarray(image)
-            gt = Image.fromarray(gt)
+            image = self.aug_transform(image)
+            gt = self.aug_transform(torch.unsqueeze(gt, 0))
+            gt = torch.squeeze(gt, 0)
             
             # Boundary modification (for training)
             if self.do_boundary_modification:
-                seg = random_modified(np.array(gt), **self.boundary_args)
-                seg = self.gt_transform(Image.fromarray(seg))
-                data['seg'] = seg
-
-            gt = randomPeper(np.array(gt)) if self.do_randomPeper else gt
+                data['seg'] = random_modified(gt, **self.boundary_args)
+            
+            if self.do_randomPeper:
+                gt_np = gt.numpy()
+                for c in range(gt_np.shape[0]):
+                    gt_np[c] = randomPeper(gt_np[c])
+                gt = torch.from_numpy(gt_np)
         else:
             image_for_post = image.copy()
-            image_for_post = image_for_post.resize(gt.size)
             data['image_for_post'] = self.get_transform()(image_for_post)
             data['name'] = self.images[idx].split('/')[-1]
 
         data['image'] = self.img_transform(image)
-        data['gt'] = self.gt_transform(gt)
+        data['gt'] = gt
 
-        # gt_idx = data['gt'].squeeze(0).long()  
-        # # build [H, W, class_num] one-hot, then permute to [class_num, H, W]
-        # # currently fixed
-        # cn = 4
-        # one_hot = F.one_hot(gt_idx, num_classes=cn) \
-        #              .permute(2, 0, 1) \
-        #              .float()
-        # data['gt'] = one_hot
-
-        # if 'seg' in data:
-        #     # squeeze off the 1-channel dim
-        #     seg_idx = data['seg'].squeeze(0).long()  
-        #     # build H×W×4 one-hot, then permute → 4×H×W
-        #     seg_oh = F.one_hot(seg_idx, num_classes=cn) \
-        #                 .permute(2,0,1).float()
-        #     data['seg'] = seg_oh
         return data
 
     def binary_loader(self, path):
@@ -147,10 +122,10 @@ class ACTK_dataset(Dataset):
     def load_data(self):
         """Load data method for compatibility with test_dataset interface"""
 
-        assert self.split != 'test', "load_data() is only available in test mode"
+        assert self.split == 'test', "load_data() is only available in test mode"
         image = self.binary_loader(self.images[self.index])
         image_tensor = self.img_transform(image).unsqueeze(0)
-        gt = self.binary_loader(self.gts[self.index])
+        gt = torch.load(self.gts[self.index])
         name = self.images[self.index].split('/')[-1]
         
         image_for_post = image.resize(gt.size)
@@ -162,6 +137,6 @@ class ACTK_dataset(Dataset):
 
     def __iter__(self):
         """Iterator for compatibility with test_dataset interface"""
-        assert self.split != 'test', "Iterator is only available in test mode"
+        assert self.split == 'test', "Iterator is only available in test mode"
         for i in range(self.dataset_size):
             yield self.load_data()
