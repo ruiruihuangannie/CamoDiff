@@ -1,11 +1,13 @@
+# Standard library imports
 import os
+import random
+
 import albumentations
-from PIL import Image
+import numpy as np
+import torch
 import torch.utils.data as data
 import torchvision.transforms as transforms
-import random
-import numpy as np
-from PIL import ImageEnhance
+from PIL import Image
 
 from dataset.dataset_utils import boundary_modification
 
@@ -47,19 +49,6 @@ def randomRotation(image, label):
         label = label.rotate(random_angle, mode)
     return image, label
 
-
-def colorEnhance(image):
-    bright_intensity = random.randint(5, 15) / 10.0
-    image = ImageEnhance.Brightness(image).enhance(bright_intensity)
-    contrast_intensity = random.randint(5, 15) / 10.0
-    image = ImageEnhance.Contrast(image).enhance(contrast_intensity)
-    color_intensity = random.randint(0, 20) / 10.0
-    image = ImageEnhance.Color(image).enhance(color_intensity)
-    sharp_intensity = random.randint(0, 30) / 10.0
-    image = ImageEnhance.Sharpness(image).enhance(sharp_intensity)
-    return image
-
-
 def randomGaussian(image, mean=0.1, sigma=0.35):
     def gaussianNoisy(im, mean=mean, sigma=sigma):
         for _i in range(len(im)):
@@ -94,9 +83,17 @@ def randomPeper(img):
 
 def random_modified(gt, iou_max=1.0, iou_min=0.8):
     iou_target = np.random.rand() * (iou_max - iou_min) + iou_min
-    seg = boundary_modification.modify_boundary((np.array(gt) > 0.5).astype('uint8') * 255, iou_target=iou_target)
-    return seg
-
+    gt_np = gt.numpy()
+    binary_mask = np.where(gt_np > 0.5, 255, 0).astype(np.uint8)
+    modified_masks = []
+    for c in range(binary_mask.shape[0]):
+        channel_mask = binary_mask[c]
+        modified_channel = boundary_modification.modify_boundary(channel_mask, iou_target=iou_target)
+        modified_masks.append(modified_channel)
+    modified_mask = np.stack(modified_masks)
+    modified_gt = np.where(modified_mask > 127, 1, 0).astype(gt_np.dtype)
+    modified_gt = torch.from_numpy(modified_gt)
+    return modified_gt
 
 # dataset for training
 class PolypObjDataset(data.Dataset):
@@ -155,7 +152,6 @@ class PolypObjDataset(data.Dataset):
             seg = self.gt_transform(Image.fromarray(seg))
             data['seg'] = seg
 
-        image = colorEnhance(Image.fromarray(image))
         gt = randomPeper(gt) if self.do_randomPeper else Image.fromarray(gt)
 
         image = self.img_transform(image)

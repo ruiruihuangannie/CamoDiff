@@ -184,13 +184,13 @@ class CondGaussianDiffusion(GaussianDiffusion):
             model: UViT,
             *,
             image_size,
-            channels=1,
+            channels,
             extra_channels=0,
-            cond_channels=3,
+            cond_channels,
             pred_objective='v',
             loss_type='l2',
             noise_schedule=logsnr_schedule_cosine,
-            noise_d=None,
+            noise_d=64,
             noise_d_low=None,
             noise_d_high=None,
             num_sample_steps=500,
@@ -219,9 +219,9 @@ class CondGaussianDiffusion(GaussianDiffusion):
     def forward(self, img, cond_img, seg=None, extra_cond=None, *args, **kwargs):
         b, channels, h, w = img.shape
         cond_channels = cond_img.shape[1]
-        assert channels == self.channels
-        assert h == w == self.image_size
-        assert cond_channels == self.cond_channels
+        assert channels == self.channels, f"Channels mismatch: {channels} != {self.channels}"
+        assert h == w == self.image_size, f"Image size mismatch: {h} != {self.image_size} or {w} != {self.image_size}"
+        assert cond_channels == self.cond_channels, f"Condition channels mismatch: {cond_channels} != {self.cond_channels}"
 
         img = normalize_to_neg_one_to_one(img)
         seg = normalize_to_neg_one_to_one(seg) if seg is not None else None

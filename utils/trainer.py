@@ -35,15 +35,31 @@ def num_to_groups(num, divisor):
         arr.append(remainder)
     return arr
 
+def composite_onehot_to_mask(onehot_pred):
+    """Convert one-hot encoded predictions back to single-channel masks using greyscale intensities."""
+    composite_array = torch.zeros((onehot_pred.shape[2], onehot_pred.shape[3]), dtype=torch.uint8)
+    for i in range(onehot_pred.shape[1]):
+        channel_data = onehot_pred[:,i]
+        composite_array[channel_data > 0.5] = i * 50
+    return composite_array
 
 def cal_mae(gt, res, thresholding, save_to=None, n=None):
-    res = F.interpolate(res.unsqueeze(0), size=gt.shape, mode='bilinear', align_corners=False)
-    res = (res - res.min()) / (res.max() - res.min() + 1e-8)
-    res = (res > 0.5).float() if thresholding else res
     res = res.cpu().numpy().squeeze()
+    gt = gt.cpu().numpy().squeeze()
+
+    mae_per_channel = []
+    for c in range(gt.shape[0]):
+        channel_mae = np.sum(np.abs(res[c] - gt[c])) * 1.0 / (gt.shape[1] * gt.shape[2])
+        mae_per_channel.append(channel_mae)
+    mae = np.mean(mae_per_channel)
+    
     if save_to is not None:
-        plt.imsave(os.path.join(save_to, n), res, cmap='gray')
-    return np.sum(np.abs(res - gt)) * 1.0 / (gt.shape[0] * gt.shape[1])
+        composite = np.zeros(gt.shape[1:], dtype=np.float32)
+        for c in range(res.shape[0]):
+            composite[res[c] > 0.5] = c * 50
+        plt.imsave(os.path.join(save_to, n), composite, cmap='gray')
+    
+    return mae
 
 
 def run_on_seed(func):
@@ -212,12 +228,6 @@ class Trainer(object):
         if '_best_mae' not in globals():
             _best_mae = 1e10
 
-        def cal_mae(gt, res, thresholding, save_to=None, n=None):
-            res = res.cpu().numpy().squeeze()
-            if save_to is not None:
-                plt.imsave(os.path.join(save_to, n), res, cmap='gray')
-            return np.sum(np.abs(res - gt)) * 1.0 / (gt.shape[0] * gt.shape[1])
-
         model.eval()
         model = accelerator.unwrap_model(model)
         device = model.device
@@ -325,10 +335,40 @@ class Trainer(object):
                         if tracker.name == "wandb":
                             out = fill_args_from_dict(self.train_val_forward_fn, data)(model=model,
                                                                                        verbose=False)
-                            tracker.log(
-                                {'pred-img-mask':
-                                     [wandb.Image(o[0, :, :]) for o in out.values()]
-                                 })
+                            # Normalize from [-1, 1] to [0, 1] for proper wandb visualization
+                            normalized_outputs = {}
+                            for key, value in out.items():
+                                if isinstance(value, torch.Tensor) and value.dtype.is_floating_point:
+                                    # Clamp to [-1, 1] and convert to [0, 1]
+                                    normalized_value = torch.clamp(value, -1, 1)
+                                    normalized_value = (normalized_value + 1) / 2
+                                    normalized_outputs[key] = normalized_value
+                                else:
+                                    normalized_outputs[key] = value
+                            
+                            raw_input_img, prediction_img, ground_truth_img = None, None, None
+                            
+                            if 'image' in data:
+                                input_img = data['image'][0].cpu()
+                                input_img = torch.clamp(input_img, -1, 1)
+                                input_img = (input_img + 1) / 2
+                                raw_input_img = input_img.squeeze().numpy()
+                            
+                            if 'pred' in normalized_outputs:
+                                pred_value = normalized_outputs['pred']
+                                prediction_img = composite_onehot_to_mask(pred_value)[0].squeeze().cpu().numpy()
+                            
+                            if 'gt' in data:
+                                gt_tensor = data['gt'][0].cpu()
+                                ground_truth_img = composite_onehot_to_mask(ground_truth_img)[0].squeeze().cpu().numpy()
+
+                            tracker.log({
+                                'validation': [
+                                    wandb.Image(raw_input_img, caption="Image"),
+                                    wandb.Image(prediction_img, caption="Prediction"), 
+                                    wandb.Image(ground_truth_img, caption="Mask")
+                                ]
+                            })
 
             accelerator.wait_for_everyone()
         self.logger.info('training complete')

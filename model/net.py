@@ -503,9 +503,9 @@ class Upsample(nn.Module):
 
 
 class Decoder(Module):
-    def __init__(self, dims, dim, class_num=2, mask_chans=1):
+    def __init__(self, dims, dim, num_classes):
         super(Decoder, self).__init__()
-        self.num_classes = class_num
+        self.num_classes = num_classes
 
         c1_in_channels, c2_in_channels, c3_in_channels, c4_in_channels = dims[0], dims[1], dims[2], dims[3]
         embedding_dim = dim
@@ -533,7 +533,7 @@ class Decoder(Module):
 
         resnet_block = partial(ResnetBlock, groups=8)
         self.down = nn.Sequential(
-            ConvModule(in_channels=1, out_channels=embedding_dim, kernel_size=7, padding=3, stride=4,
+            ConvModule(in_channels=self.num_classes, out_channels=embedding_dim, kernel_size=7, padding=3, stride=4,
                        norm_cfg=dict(type='BN', requires_grad=True)),
             resnet_block(embedding_dim, embedding_dim, time_emb_dim=self.time_embed_dim),
             ConvModule(in_channels=embedding_dim, out_channels=embedding_dim, kernel_size=3, padding=1,
@@ -556,7 +556,8 @@ class Decoder(Module):
             # ConvModule(in_channels=embedding_dim//8+1, out_channels=embedding_dim//8, kernel_size=1,
             #            norm_cfg=dict(type='BN', requires_grad=True)),
             nn.Dropout(0.1),
-            Conv2d(embedding_dim // 8, self.num_classes, kernel_size=1)
+            Conv2d(embedding_dim // 8, self.num_classes, kernel_size=1),
+            nn.Softmax(dim=1)
         )
 
     def forward(self, inputs, timesteps, x):
@@ -601,12 +602,12 @@ class Decoder(Module):
 
 
 class net(nn.Module):
-    def __init__(self, class_num=2, mask_chans=0, **kwargs):
+    def __init__(self, num_classes, **kwargs):
         super(net, self).__init__()
-        self.class_num = class_num
-        # self.backbone = pvt_v2_b4_m(in_chans=3, mask_chans=mask_chans)
-        self.backbone = pvt_v2_b4_m(in_chans=1, mask_chans=mask_chans)
-        self.decode_head = Decoder(dims=[64, 128, 320, 512], dim=256, class_num=class_num, mask_chans=mask_chans)
+        self.num_classes = num_classes
+        # self.backbone = pvt_v2_b4_m(in_chans=3, mask_chans=num_classes)
+        self.backbone = pvt_v2_b4_m(in_chans=1, mask_chans=self.num_classes)
+        self.decode_head = Decoder(dims=[64, 128, 320, 512], dim=256, num_classes=self.num_classes)
         # self._init_weights()  # load pretrain
 
     def forward(self, x, timesteps, cond_img):
