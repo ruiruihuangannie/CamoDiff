@@ -36,16 +36,16 @@ def num_to_groups(num, divisor):
     return arr
 
 def composite_onehot_to_mask(onehot_pred):
-    """Convert one-hot encoded predictions back to single-channel masks using greyscale intensities."""
-    composite_array = torch.zeros((onehot_pred.shape[2], onehot_pred.shape[3]), dtype=torch.uint8)
-    for i in range(onehot_pred.shape[1]):
-        channel_data = onehot_pred[:,i]
+    pred = onehot_pred[0] if onehot_pred.dim() == 4 else onehot_pred
+    composite_array = torch.zeros((pred.shape[1], pred.shape[2]), dtype=torch.uint8)
+    for i in range(pred.shape[0]):
+        channel_data = pred[i]
         composite_array[channel_data > 0.5] = i * 50
     return composite_array
 
 def cal_mae(gt, res, thresholding, save_to=None, n=None):
-    res = res.cpu().numpy().squeeze()
-    gt = gt.cpu().numpy().squeeze()
+    res = np.array(res).squeeze()
+    gt = np.array(gt).squeeze()
 
     mae_per_channel = []
     for c in range(gt.shape[0]):
@@ -239,7 +239,7 @@ class Trainer(object):
             gt = [x / (x.max() + 1e-8) for x in gt]
             image = image.to(device)
             ensem_out = self.train_val_forward_fn(model, image=image, time_ensemble=True,
-                                                  gt_sizes=[g.shape for g in gt], verbose=False)
+                                                  gt_sizes=[g.shape[-2:] for g in gt], verbose=False)
             ensem_res = ensem_out["pred"]
 
             ensemble_maes += [cal_mae(g, r, thresholding, save_to, n) for g, r, n in zip(gt, ensem_res, name)]
@@ -356,11 +356,11 @@ class Trainer(object):
                             
                             if 'pred' in normalized_outputs:
                                 pred_value = normalized_outputs['pred']
-                                prediction_img = composite_onehot_to_mask(pred_value)[0].squeeze().cpu().numpy()
+                                prediction_img = composite_onehot_to_mask(pred_value).squeeze().cpu().numpy()
                             
                             if 'gt' in data:
                                 gt_tensor = data['gt'][0].cpu()
-                                ground_truth_img = composite_onehot_to_mask(ground_truth_img)[0].squeeze().cpu().numpy()
+                                ground_truth_img = composite_onehot_to_mask(gt_tensor).squeeze().cpu().numpy()
 
                             tracker.log({
                                 'validation': [

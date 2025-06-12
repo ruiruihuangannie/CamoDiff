@@ -52,7 +52,8 @@ def modification_train_val_forward(model: nn.Module, gt=None, image=None, seg=No
             pred = torch.mean(preds, dim=1, keepdim=True)
 
             def process(i, p, gt_size):
-                p = F.interpolate(p.unsqueeze(0), size=gt_size, mode='bilinear', align_corners=False)
+                p = p.unsqueeze(0) 
+                p = F.interpolate(p, size=gt_size, mode='bilinear', align_corners=False)
                 p = normalize_to_01(p)
                 ps = F.interpolate(preds[i].unsqueeze(0), size=gt_size, mode='bilinear', align_corners=False)
                 preds_round = (ps > 0).float().mean(dim=1, keepdim=True)
