@@ -147,46 +147,38 @@ class Bce_iou_loss(nn.Module):
 
         return (weighted_bce + weighted_iou).mean()
 
-def structure_loss_multiclass(pred, mask):
+
+class SegmentationLoss(nn.Module):
     """
-    Structure loss for multiclass segmentation.
-    
-    Args:
-        pred: [B, C, H, W] - model predictions (logits)
-        mask: [B, C, H, W] - one-hot ground truth per class
-    
-    Returns:
-        Scalar loss combining structure-aware cross-entropy and dice loss
+    Pure Dice loss for segmentation tasks in diffusion models.
+    Expects pred in range [0,1] and target in range [0,1].
+    Uses smooth parameter to ensure differentiability.
     """
-    smooth = 1e-8
-    B, C, H, W = pred.shape
+    def __init__(self, smooth=1e-5):
+        super(SegmentationLoss, self).__init__()
+        self.smooth = smooth
 
-    # 1) Compute softmax over prediction logits
-    pred_soft = F.softmax(pred, dim=1)  # [B, C, H, W]
+    def forward(self, pred, target):
+        """
+        Pure Dice loss for diffusion model outputs
+        Args:
+            pred: Model prediction in range [0,1], shape (N, C, H, W)
+            target: Ground truth in range [0,1], shape (N, C, H, W)
+        Returns:
+            dice_loss: 1 - dice_coefficient, bounded in [0,1]
+        """
+        # Clamp predictions to valid range to ensure numerical stability
+        pred = torch.clamp(pred, min=1e-7, max=1-1e-7)
+        
+        N, C = pred.size()[:2]
+        pred = pred.view(N, C, -1)  # (N, C, *)
+        target = target.view(N, C, -1)  # (N, C, *)
 
-    # 2) Use average pooling to compute structure-aware weights
-    weight = 1 + 5 * torch.abs(
-        F.avg_pool2d(mask.float(), kernel_size=31, stride=1, padding=15) - mask.float()
-    )  # [B, C, H, W]
+        intersection = torch.sum(pred * target, dim=2)  # (N, C)
+        union = torch.sum(pred, dim=2) + torch.sum(target, dim=2)  # (N, C)
+        dice_coef = (2. * intersection + self.smooth) / (union + self.smooth)  # (N, C)
 
-    # 3) Compute hard labels (class indices) from one-hot ground truth
-    labels = mask.argmax(dim=1)  # [B, H, W]
-
-    # 4) Gather pixel-wise weight corresponding to ground truth class
-    weight_pixel = weight.gather(1, labels.unsqueeze(1)).squeeze(1)  # [B, H, W]
-
-    # 5) Compute weighted per-pixel cross entropy
-    ce_map = F.cross_entropy(pred, labels, reduction='none')  # [B, H, W]
-    weighted_ce = (weight_pixel * ce_map).sum((1, 2)) / (weight_pixel.sum((1, 2)) + smooth)  # [B]
-
-    # 6) Compute per-class Dice loss
-    intersection = (weight * pred_soft * mask).sum((2, 3))  # [B, C]
-    union = (weight * (pred_soft + mask)).sum((2, 3))       # [B, C]
-    dice_score = (2 * intersection + smooth) / (union + smooth)  # [B, C]
-    dice_loss = 1 - dice_score  # [B, C]
-    dice_loss = dice_loss.mean(dim=1)  # [B]
-
-    # 7) Combine CE + Dice and average over batch
-    loss = (weighted_ce + dice_loss).mean()
-
-    return loss
+        # Dice coefficient is bounded [0,1], so dice_loss is bounded [0,1]
+        dice_loss = 1 - dice_coef.mean()
+        
+        return dice_loss

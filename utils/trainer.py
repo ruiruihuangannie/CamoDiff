@@ -38,9 +38,15 @@ def num_to_groups(num, divisor):
 def composite_onehot_to_mask(onehot_pred):
     pred = onehot_pred[0] if onehot_pred.dim() == 4 else onehot_pred
     composite_array = torch.zeros((pred.shape[1], pred.shape[2]), dtype=torch.uint8)
+    
+    # Apply argmax to get the most likely class for each pixel
+    pred_classes = torch.argmax(pred, dim=0)
+    
+    # Create composite with better contrast
     for i in range(pred.shape[0]):
-        channel_data = pred[i]
-        composite_array[channel_data > 0.5] = i * 50
+        mask = (pred_classes == i)
+        composite_array[mask] = i * (255 // (pred.shape[0] - 1)) if pred.shape[0] > 1 else 255
+    
     return composite_array
 
 def cal_mae(gt, res, thresholding, save_to=None, n=None):

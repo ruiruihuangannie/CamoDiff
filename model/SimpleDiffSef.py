@@ -204,7 +204,8 @@ class CondGaussianDiffusion(GaussianDiffusion):
         if loss_type not in ['l2', 'l1', 'l1+l2', 'mean(l1, l2)']:
             try:
                 from utils.import_utils import get_obj_from_str
-                loss_type = get_obj_from_str(loss_type)
+                loss_class = get_obj_from_str(loss_type)
+                loss_type = loss_class()  # Instantiate the loss class
             except:
                 raise NotImplementedError
 
@@ -253,7 +254,15 @@ class CondGaussianDiffusion(GaussianDiffusion):
 
         elif self.pred_objective == 'x0':
             # Note: x_start in here is from -1 to 1
-            target = (x_start + 1)/2
+            target = x_start
+
+        # Apply proper output activation for custom losses
+        if self.loss_type not in ['l2', 'l1', 'l1+l2', 'mean(l1, l2)']:
+            if self.pred_objective == 'x0':
+                # For segmentation losses, convert model output to [0,1] range
+                # but keep target in same range
+                model_out = torch.sigmoid(model_out)
+                target = (target + 1) / 2  # Convert target from [-1,1] to [0,1]
 
         if self.loss_type == 'l2':
             return F.mse_loss(model_out, target)
@@ -288,7 +297,8 @@ class CondGaussianDiffusion(GaussianDiffusion):
             img = self.p_sample(img, conditioning_features, extra_cond, times, times_next)
 
         img.clamp_(-1., 1.)
-        img = unnormalize_to_zero_to_one(img)
+        # Convert from [-1,1] to [0,1] for segmentation outputs
+        img = (img + 1) / 2
         return img
 
     @torch.no_grad()
@@ -338,10 +348,10 @@ class CondGaussianDiffusion(GaussianDiffusion):
             x_start = (x - sigma * pred) / alpha
 
         elif self.pred_objective == 'x0':
-            # raise NotImplementedError
-            # due to we don't know x is normalized or not
-            x_start = pred.tanh()
-            # x_start = x
+            x_start = pred  # Don't apply sigmoid here, model output should be raw logits
+            # Apply sigmoid and convert to [-1,1] range for consistency
+            x_start = torch.sigmoid(x_start)
+            x_start = x_start * 2 - 1
 
         x_start.clamp_(-1., 1.)
         self.history.append(x_start) # change to pred when generate cam
@@ -385,6 +395,6 @@ class ResCondGaussianDiffusion(CondGaussianDiffusion):
             img = self.p_sample(img, conditioning_features, extra_cond, times, times_next)
 
         img.clamp_(-1., 1.)
-        # Also we don't need to unnormalize the image because the output we need is [-1, 1]
-        # img = unnormalize_to_zero_to_one(img)
+        # Convert from [-1,1] to [0,1] for segmentation outputs
+        img = (img + 1) / 2
         return img

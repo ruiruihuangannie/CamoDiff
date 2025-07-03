@@ -90,8 +90,11 @@ class ACTK_dataset(Dataset):
 
         # data augmentation
         if self.split == 'train':
-            assert self.aug_transform is not None, "Augmentation is not applied in training mode"
+            # Use the same random seed for both image and gt transformations
+            seed = torch.randint(0, 2**32, (1,)).item()
+            torch.manual_seed(seed)
             image = self.aug_transform(image)
+            torch.manual_seed(seed)
             gt = self.aug_transform(torch.unsqueeze(gt, 0))
             gt = torch.squeeze(gt, 0)
             
