@@ -56,10 +56,12 @@ class ACTK_dataset(Dataset):
         
         if self.split == 'train':
             self.aug_transform = transforms.Compose([
+                transforms.Pad(padding=20, padding_mode='reflect'),
                 transforms.RandomAffine(degrees=15, scale=(0.75, 1.25)),
                 transforms.RandomHorizontalFlip(p=0.5),
                 transforms.RandomVerticalFlip(p=0.5),
-                transforms.RandomRotation(degrees=90)
+                transforms.RandomRotation(degrees=90),
+                transforms.CenterCrop(self.resize)
             ])
         else:
             self.aug_transform = None

@@ -5,13 +5,7 @@ import math
 from .de_transform import perturb_seg
 
 
-def modify_boundary(image, regional_sample_rate=0.1, sample_rate=0.1, move_rate=0.0, iou_target = 0.8):
-    # modifies boundary of the given mask.
-    # remove consecutive vertice of the boundary by regional sample rate
-    # ->
-    # remove any vertice by sample rate
-    # ->
-    # move vertice by distance between vertice and center of the mask by move rate. 
+def modify_boundary(image, regional_sample_rate=0.05, sample_rate=0.05, move_rate=0.0, iou_target = 0.9):
     # input: np array of size [H,W] image
     # output: same shape as input
     
