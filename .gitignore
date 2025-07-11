@@ -4,3 +4,4 @@ media/
 pretrained_weights/
 wandb/
 setup*
+results/

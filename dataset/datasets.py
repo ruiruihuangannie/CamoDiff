@@ -17,7 +17,7 @@ from dataset.data_val import randomPeper, random_modified
 
 class ACTK_dataset(Dataset):
     def __init__(self, image_root, gt_root, size, split, mean=None, std=None, 
-                 randomPeper=True, boundary_modification=False, boundary_args={}):
+                 randomPeper=False, boundary_modification=False, boundary_args={}):
         """
         General dataset class for both training and testing.
         
@@ -48,34 +48,19 @@ class ACTK_dataset(Dataset):
         self.gts = sorted(self.gts)
         assert len(self.images) == len(self.gts), f"Mismatch: {len(self.images)} images vs {len(self.gts)} ground truth files"
 
-        # Setup transforms
-        self.img_transform = self.get_transform(mean, std)
+        # set transforms
+        self.img_transform = self.get_transform()
         self.gt_transform = transforms.Compose([
             transforms.Resize((self.resize, self.resize), interpolation=transforms.InterpolationMode.NEAREST),
         ])
-        
-        if self.split == 'train':
-            self.aug_transform = transforms.Compose([
-                transforms.Pad(padding=20, padding_mode='reflect'),
-                transforms.RandomAffine(degrees=15, scale=(0.75, 1.25)),
-                transforms.RandomHorizontalFlip(p=0.5),
-                transforms.RandomVerticalFlip(p=0.5),
-                transforms.RandomRotation(degrees=90),
-                transforms.CenterCrop(self.resize)
-            ])
-        else:
-            self.aug_transform = None
             
         self.dataset_size = len(self.images)
 
-    def get_transform(self, mean=None, std=None):
-        mean = [0.5] if mean is None else mean
-        std = [0.5] if std is None else std
-        
+    def get_transform(self):
         transform = transforms.Compose([
             transforms.Resize((self.resize, self.resize)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean, std)
+            transforms.ToTensor(),  # Converts to [0, 1]
+            transforms.Lambda(lambda x: x * 2.0 - 1.0)  # Normalize to [-1, 1]
         ])
         return transform
 
@@ -91,19 +76,9 @@ class ACTK_dataset(Dataset):
         gt = transforms.Resize((self.resize, self.resize), interpolation=transforms.InterpolationMode.NEAREST)(gt)
 
         # data augmentation
-        if self.split == 'train':
-            # Use the same random seed for both image and gt transformations
-            seed = torch.randint(0, 2**32, (1,)).item()
-            torch.manual_seed(seed)
-            image = self.aug_transform(image)
-            torch.manual_seed(seed)
-            gt = self.aug_transform(torch.unsqueeze(gt, 0))
-            gt = torch.squeeze(gt, 0)
-            
-            # Boundary modification (for training)
+        if self.split == 'train':            
             if self.do_boundary_modification:
                 data['seg'] = random_modified(gt, **self.boundary_args)
-            
             if self.do_randomPeper:
                 gt_np = gt.numpy()
                 for c in range(gt_np.shape[0]):
